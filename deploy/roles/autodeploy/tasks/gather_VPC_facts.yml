@@ -1,0 +1,24 @@
+# lets get some facts about the network configuration
+
+# what is needed:
+# scalable_vpc_facts
+
+# Elastic Load Ballancer
+- name: Lookup Elb Facts
+  shell: "(aws elbv2 describe-load-balancers --names {{ cluster_name |replace('_', '-') }} --output=json)"
+  register: ecs_elb_facts
+
+- name: Make facts about elbs
+  set_fact:
+    ecs_elb_fact: "{{ ecs_elb_facts.stdout }}"
+- debug: msg="{{ ecs_elb_facts.stdout }}"
+
+# ECS role for starting the tasks
+- name: Lookup VPC by tags
+  ec2_vpc_net_facts:
+    region: "{{ cloud_config.region }}" 
+    filters:
+      "tag:service": "{{ cluster_name }}"
+  register: scalable_vpc_facts
+
+

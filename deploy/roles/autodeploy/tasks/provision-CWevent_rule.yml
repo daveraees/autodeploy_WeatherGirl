@@ -1,0 +1,153 @@
+
+
+- name: Create task definition
+  ecs_taskdefinition:
+    family: "{{ cluster_name }}-backend-taskdef"
+    task_role_arn: "{{ ecs_role.arn }}"
+    execution_role_arn: "{{ ecs_role.arn }}"
+    containers:
+    - name: "download_app"
+      essential: true
+      image: "{{ be_ecr_repo.repository.repositoryUri }}:{{ be_source_image_tag }}"
+      environment:
+      - name: "WG_REMOTE_DATA_STORE"
+        value: "https://{{ s3bucket_name }}.s3.amazonaws.com"
+      - name: "WG_QUERY_SECRET"
+        value: "{{ lookup('env', 'WG_QUERY_SECRET') }}"
+      - name: "WG_CONFIG_PATH"
+        value: "https://{{ s3bucket_name }}.s3.amazonaws.com/wg_config.json.gz"
+      - name: "WG_DATABASE_ENDPOINT"
+        value: "{{mysql_instance_facts.instance.endpoint}}" 
+      - name: "WG_DATABASE_PORT"
+        value: "{{mysql_instance_facts.instance.port}}"
+      - name: "WG_DATABASE_USER"
+        value: "{{ lookup('env', 'WG_DATABASE_USER') }}"
+      - name: "WG_DATABASE_PASS"
+        value: "{{ lookup('env', 'WG_DATABASE_PASS') }}"
+      - name: "WG_DATABASE_NAME"
+        value: "{{ db_database_name }}"
+      - name: "WG_LOCAL_DATA_STORE"
+        value: "app/data"
+      logConfiguration:
+        logDriver: awslogs
+        options:
+          awslogs-group: "{{ cluster_name }}"
+          awslogs-region: "{{ cloud_config.region }}"
+          awslogs-stream-prefix: "{{ cluster_name }}-containers"
+    launch_type: FARGATE
+    cpu: 256
+    memory: 512
+    state: present
+    region: "{{ cloud_config.region }}"
+    network_mode: awsvpc
+  register: backend_taskdef
+
+- debug: msg="{{ backend_taskdef }}"
+
+#- name: RUN a task on Fargate # broken in Ansible
+#  community.aws.ecs_task:
+#    operation: start
+#    cluster: "{{ cluster_name }}"
+#    #family: "{{ cluster_name }}-backend-taskdef-family"
+#    task: "{{ cluster_name }}-backend-taskdef"
+#    task_definition: "{{ cluster_name }}-backend-taskdef"
+#    started_by: "ansible_user"
+#    launch_type: FARGATE
+#    network_configuration:
+#      subnets:
+#      - "{{ cluster_subnet.results[0]['subnet']['id'] }}" # public
+#      - "{{ cluster_subnet.results[1]['subnet']['id'] }}" # private
+#      - "{{ cluster_subnet.results[2]['subnet']['id'] }}" # private alt_AZ
+#      security_groups:
+#      - "{{ http_security_group.security_groups[0]['group_id'] }}"
+#    count: "{{ size_of_cluster }}"
+#    region: "{{ cloud_config.region }}"
+#  register: task_output
+# 
+#- debug: msg="{{ task_output }}"
+
+- name: Create a role for CloudWatchEventScheduler
+  iam_role:
+    name: cwe-scheduler
+    assume_role_policy_document: "{{ lookup('file','./vars/cwEventsRole.json') }}"
+    description: Allows CloudWatchEvent Rule to invoke Fargate-ECS task on your behalf.
+  register: cwe_role
+
+- name: Create a policy
+  iam_policy:
+    iam_type: role
+    iam_name: cwe-scheduler
+    policy_name: cwe-allow-invoke-Fargate
+    policy_json: " {{ lookup( 'file', './vars/cwEventsRolePolicy.json') }} "
+    state: present
+
+
+- name: set name of schedule for backend task
+  set_fact: 
+    schedule_name: "scheduled_data_download"
+
+- name: Set commandline arguments --targets
+  set_fact:
+    task_target_def_filename: 'awscli-events-put-target-args.json'
+    cmd_line_args: {
+                    "Rule": "{{ schedule_name }}",
+                    "Targets": [
+                        {
+                            "Id": "1",
+                            "Arn": "{{ cluster_facts.cluster.clusterArn }}",
+                            "RoleArn": "{{ cwe_role.arn }}",
+                            "EcsParameters": {
+                                "TaskDefinitionArn": "{{ backend_taskdef.taskdefinition.taskDefinitionArn }}",
+                                "TaskCount": 1,
+                                "LaunchType": "FARGATE",
+                                "NetworkConfiguration": {
+                                    "awsvpcConfiguration": {
+                                        "Subnets": [
+                                            "{{ cluster_subnet.results[1]['subnet']['id'] }}"
+                                        ],
+                                        "SecurityGroups": [
+                                            "{{ http_security_group.security_groups[0]['group_id'] }}"
+                                        ],
+                                        "AssignPublicIp": "DISABLED"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }   
+
+- name: Setup schedule for a backend task
+  shell: 'aws events put-rule --region {{ cloud_config.region }} --schedule-expression "{{ download_rate_expression }}" --name "{{ schedule_name }}"'
+  args:
+    executable: /bin/bash
+  ignore_errors: True
+  tags:
+    - backend
+
+- name: Save the cmdline args to a file
+  copy: content="{{ cmd_line_args|to_json }}" dest="{{ task_target_def_filename }}"
+
+
+- name: Setup scheduled backend task
+  shell: 'aws events put-targets --region us-east-1 --cli-input-json file://{{ task_target_def_filename }}'
+  #shell: 'aws events put-targets --region us-east-1 --cli-input-json {{ cmd_line_args|to_json }}'
+  args:
+    executable: /bin/bash
+  tags:
+    - backend
+
+
+
+
+
+
+#- name: Setup CloudWatchEvent rule for backend scheduled taks
+#  community.aws.cloudwatchevent_rule:
+#    name: "bi-hourly_data_download"
+#    schedule_expression: "rate(2 hours)" # every two hours
+#    description: "Run my scheduled task every 2 hours"
+#    region: "{{ cloud_config.region }}"
+#    targets:
+#      - id: OpenWeatherDownloader-task
+#        arn: "{{ task_output.taskdefinition.taskDefinitionArn }}"
+        

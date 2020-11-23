@@ -1,0 +1,127 @@
+# tasks for the network infrastructure provision
+- name: Create the VPC
+  ec2_vpc_net:
+    region: "{{ cloud_config.region }}"
+    cidr_block: "{{ cloud_config.vpc_cidr }}"
+    name: "{{ cloud_config.vpc_name }}"
+    tags:
+      service: "{{ cluster_name }}"
+    state: present
+  register: cluster_vpc
+
+- name: Create the Subnet
+  ec2_vpc_subnet:
+    region: "{{ cloud_config.region }}"
+    az: "{{ item.zone }}"
+    vpc_id: "{{ cluster_vpc.vpc.id }}"
+    cidr: "{{ item.subnet_cidr }}"
+    resource_tags:
+      Name: "{{ item.subnet_name }}"
+    state: present
+  with_items: "{{ cloud_config.subnets }}"
+  register: cluster_subnet
+
+- name: Add an Internet Gateway to the VPC
+  ec2_vpc_igw:
+    region: "{{ cloud_config.region }}"
+    vpc_id: "{{ cluster_vpc.vpc.id }}"
+    state: present
+  when: cloud_config.internet_gateway
+  register: cluster_igw
+  
+- name: Create new NAT gateway and allocate new EIP if a nat gateway does not yet exist in the public subnet.
+  community.aws.ec2_vpc_nat_gateway:
+    state: present
+    subnet_id: "{{ cluster_subnet.results[0]['subnet']['id'] }}"
+    wait: true
+    region: "{{ cloud_config.region }}"
+    if_exist_do_not_create: true
+  register: cluster_natgw
+
+- name: lookup route tables
+  ec2_vpc_route_table_facts:
+    region: "{{ cloud_config.region }}"
+    filters:
+      "tag:Name": scalable-app
+  register: check_route_table
+  ignore_errors: True
+- debug: msg="{{ check_route_table }}"
+
+- debug: msg="{{ cluster_subnet.results[0]['subnet'] }}"
+
+- name: Set up the public subnet route table for the Internet Gateway
+#  block:
+  ec2_vpc_route_table:
+    tags:
+      Name: scalable-app
+    region: "{{ cloud_config.region }}"
+    vpc_id: "{{ cluster_vpc.vpc.id }}"
+    subnets:
+      - "{{ cloud_config.subnets[0].subnet_cidr }}"
+#          - "{{ cloud_config.subnets[1].subnet_cidr }}"
+#          - "{{ cloud_config.subnets[2].subnet_cidr }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ cluster_igw.gateway_id }}"
+    state: present
+#  when: cluster_igw.gateway_id is defined and check_route_table is failed
+
+- name: Set up the private subnet route table for the NAT gateway
+  ec2_vpc_route_table:
+    tags:
+      Name: route-privateB
+    region: "{{ cloud_config.region }}"
+    vpc_id: "{{ cluster_vpc.vpc.id }}"
+    subnets:
+#      - "{{ cloud_config.subnets[0].subnet_cidr }}"
+      - "{{ cloud_config.subnets[1].subnet_cidr }}"
+#      - "{{ cloud_config.subnets[2].subnet_cidr }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ cluster_natgw.nat_gateway_id }}"
+    state: present
+
+- name: Set up the private subnet route table for the NAT gateway in alternative AZ
+  ec2_vpc_route_table:
+    tags:
+      Name: route-privateB_altAZ
+    region: "{{ cloud_config.region }}"
+    vpc_id: "{{ cluster_vpc.vpc.id }}"
+    subnets:
+#      - "{{ cloud_config.subnets[0].subnet_cidr }}"
+#      - "{{ cloud_config.subnets[1].subnet_cidr }}"
+      - "{{ cloud_config.subnets[2].subnet_cidr }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ cluster_natgw.nat_gateway_id }}"
+    state: present
+
+- name: Add a subnet group for the RDS database
+  community.aws.rds_subnet_group:
+    state: present
+    name: WG-DB-subnet-group
+    description: DB subnet group
+    region: "{{ cloud_config.region }}"
+    subnets:
+#      - "{{ cluster_subnet.results[0]['subnet']['id'] }}"
+      - "{{ cluster_subnet.results[1]['subnet']['id'] }}"
+      - "{{ cluster_subnet.results[2]['subnet']['id'] }}"
+  register: rds_subnet_group
+- debug: msg="{{rds_subnet_group}}"
+
+- name: Create Security Groups
+  ec2_group:
+    region: "{{ cloud_config.region }}"
+    name: "{{ item.name }}"
+    vpc_id: "{{ cluster_vpc.vpc.id }}"
+    description: "{{ item.description }}"
+    purge_rules: false
+    purge_rules_egress: false
+    rules: "{{ item.rules }}"
+  with_items: "{{ cloud_config.security_groups }}"
+  register: cluster_security_groups
+- name: Print security groups
+  debug:
+    msg: "{{ cluster_security_groups }}"
+
+

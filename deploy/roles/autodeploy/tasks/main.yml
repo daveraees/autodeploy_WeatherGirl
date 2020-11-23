@@ -1,0 +1,26 @@
+---
+# tasks file for infrastructure-provision
+
+- name: provision network infrastructure
+  import_tasks: provision_network.yml
+  
+- name: create the S3 bucket for application files storage
+  import_tasks: provision_S3bucket.yml
+  
+- name: create MySQL database and setup access to it
+  import_tasks: provision_MySQL_database.yml
+  
+- name: build docker images for the app
+  import_tasks: build-Images.yml
+  
+- name: create ECR for docker images
+  import_tasks: provision-ECR.yml
+  
+- name: create ECS cluster
+  import_tasks: provision-ECS_cluster.yml
+    
+- name: create Fargate task and service
+  import_tasks: provision-Fargate_task.yml
+  
+- name: create Backend task-def and schedule
+  import_tasks: provision-CWevent_rule.yml

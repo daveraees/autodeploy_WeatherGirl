@@ -1,0 +1,50 @@
+- name: Setup ECS cluster
+  ecs_cluster:
+    name: "{{ cluster_name }}"
+    state: present
+    region: "{{ cloud_config.region }}"
+
+- name: Create a role
+  iam_role:
+    name: fargate-ecs
+    assume_role_policy_document: "{{ lookup('file','./vars/ecsTaskRole.json') }}"
+    description: Allows ECS tasks to call AWS services on your behalf.
+  register: ecs_role
+
+- name: Create a policy
+  iam_policy:
+    iam_type: role
+    iam_name: fargate-ecs
+    policy_name: fargate-ecs
+    policy_json: " {{ lookup( 'file', './vars/ecsTaskRolePolicy.json') }} "
+    state: present
+
+
+- name: Create a log group for the logs
+  cloudwatchlogs_log_group:
+    retention: 30
+    region: "{{ cloud_config.region }}"
+    state: present
+    log_group_name: "{{ cluster_name }}"
+
+- name: Lookup http security group by name
+  ec2_group_facts:
+    region: "{{ cloud_config.region }}"
+    filters:
+      group-name: scalable-http
+  register: http_security_group
+
+- name: Lookup VPC by tags
+  ec2_vpc_net_facts:
+    region: "{{ cloud_config.region }}" 
+    filters:
+      "tag:service": "{{ cluster_name }}"
+  register: scalable_vpc_facts
+
+- name: create ECS cluster
+  ecs_cluster:
+    name: "{{ cluster_name }}"
+    state: present
+    region: "{{ cloud_config.region }}"
+  register: cluster_facts
+- debug: msg="{{ cluster_facts }}"

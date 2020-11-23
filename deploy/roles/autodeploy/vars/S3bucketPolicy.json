@@ -1,0 +1,33 @@
+{
+    "Version": "2012-10-17",
+    "Id": "Policy1605909701386",
+    "Statement": [
+        {
+            "Sid": "Access-to-specific-VPC-only",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:s3:::muyavskybl",
+                "arn:aws:s3:::muyavskybl/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:SourceVpc": "vpc-0ab02b0c184645dba"
+                }
+            }
+        },
+            {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::275550960391:root"
+            },
+            "Action": "s3:*",
+            "Resource": [
+                "arn:aws:s3:::muyavskybl",
+                "arn:aws:s3:::muyavskybl/*"
+            ]
+        }
+
+    ]
+}

@@ -1,0 +1,22 @@
+# build the docker images for the web application
+
+- name: Build image for the backend task
+  community.general.docker_image:
+    name: "{{be_source_image_name}}"
+    build:
+      path: "{{ be_source_folder }}"
+    state: "present"
+    tag: "latest"
+    force_source: true
+    source: build
+
+- name: Build image for the frontend task
+  community.general.docker_image:
+    name: "{{fe_source_image_name}}"
+    build:
+      path: "{{ fe_source_folder }}"
+    state: "present"
+    tag: "latest"
+    force_source: true
+    source: build
+

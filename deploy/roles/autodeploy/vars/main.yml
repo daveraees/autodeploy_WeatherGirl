@@ -1,0 +1,39 @@
+---
+# vars file for infrastructure-provision
+cluster_name: weather_girl
+s3bucket_name: "{{ lookup('env', 'WG_S3_BUCKET_NAME') }}" # this should be taken from an environment variable, of the Ansible Master Node (cluster build config)
+db_instance_name: "{{ lookup('env', 'WG_DB_INSTANCE_NAME') }}" 
+db_database_name: "cities"
+size_of_cluster: 1
+download_rate_expression: "rate(60 minutes)" # CloudWatchEvent rule task scheduling expression for downloading the data
+
+# backend docker image parameters
+be_source_folder: "{{ lookup('env', 'WG_BACKEND_SOURCE_DIR') }}"
+be_repository_name: "wg_backend"
+be_source_image_name: "wg_backend"
+be_source_image_tag: "latest"
+
+# frontend docker image parameters
+fe_source_folder: "{{ lookup('env', 'WG_FRONTEND_SOURCE_DIR') }}"
+fe_repository_name: "wg_frontend"
+fe_source_image_name: "wg_frontend"
+fe_source_image_tag: "latest"
+
+cloud_config:
+  region: '{{ region }}'
+  vpc_name: "{{ cluster_name }}-vpc"
+  vpc_cidr: '10.0.0.0/16'
+  subnets:
+    - { subnet_name: '{{ cluster_name }}_subnet_public', subnet_cidr: '10.0.0.0/24', zone: '{{ region }}a' }
+    - { subnet_name: '{{ cluster_name }}_subnet_private', subnet_cidr: '10.0.1.0/24', zone: '{{ region }}a' }
+    - { subnet_name: '{{ cluster_name }}_subnet_private_altAZ', subnet_cidr: '10.0.2.0/24', zone: '{{ region }}b' }
+  internet_gateway: true                                           
+  admin_username: ec2-user
+  security_groups:
+    - name: scalable-http
+      rules:
+        - {"proto":"tcp", "from_port":"80", "to_port":"80", "cidr_ip":"0.0.0.0/0"}
+        - {"proto":"tcp", "from_port":"3306", "to_port":"3306", "cidr_ip":"0.0.0.0/0"} # for access to the database from anywhere
+        - {"proto":"tcp", "from_port":"443", "to_port":"443", "cidr_ip":"0.0.0.0/0"}
+        - {"proto":"tcp", "from_port":"5000", "to_port":"5000", "cidr_ip":"0.0.0.0/0"}
+      description: "http - {{ cluster_name }}"

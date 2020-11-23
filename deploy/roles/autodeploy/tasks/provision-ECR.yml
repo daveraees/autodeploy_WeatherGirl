@@ -1,0 +1,80 @@
+- name: ecr docker get-authorization-token
+  shell: "aws ecr get-authorization-token --region {{ cloud_config.region }}"
+  register: ecr_command
+
+- set_fact:
+    ecr_authorization_data: "{{ (ecr_command.stdout | from_json).authorizationData[0] }}"
+
+- set_fact:
+    ecr_credentials: "{{ (ecr_authorization_data.authorizationToken | b64decode).split(':') }}"
+
+- name: docker_repository - Log into ECR registry and force re-authorization
+  docker_login:
+    registry_url: "{{ ecr_authorization_data.proxyEndpoint.rpartition('//')[2] }}"
+    username: "{{ ecr_credentials[0] }}"
+    password: "{{ ecr_credentials[1] }}"
+    reauthorize: yes
+
+- name: Create ECR repository for Backend
+  ecs_ecr:
+    name: "{{ be_repository_name }}"
+    region: "{{ cloud_config.region }}"
+  register: be_ecr_repo
+
+- name: Set full_destination_image
+  set_fact:
+    be_full_destination_image: "{{ be_ecr_repo.repository.repositoryUri }}:{{ be_source_image_tag }}"
+  tags:
+    - ecr
+
+#- name: Tag and push image for backend # broken in Ansible
+#  docker_image:
+#    name: "{{be_source_image_name}}:{{ be_source_image_tag }}"
+#    repository: "{{ be_ecr_repo.repository.repositoryUri }}"
+#    tag: "{{ be_source_image_tag }}"
+#    push: yes
+#  tags:
+#    - ecr
+
+- name: Apply tag to the docker image.
+  command: "docker tag {{ be_source_image_name }}:{{ be_source_image_tag }} {{ be_full_destination_image }}"
+  changed_when: true
+  tags:
+    - ecr
+
+- name: Push backend image to ECR.
+  command: "docker push {{ be_full_destination_image }}"
+  register: push_result
+  changed_when: true
+  until: push_result is success
+  retries: 10
+  delay: 2
+  tags:
+    - ecr
+
+- name: Create ECR repository for frontend
+  ecs_ecr:
+    name: "{{ fe_repository_name }}"
+    region: "{{ cloud_config.region }}"
+  register: fe_ecr_repo
+
+- name: Set full_destination_image
+  set_fact:
+    fe_full_destination_image: "{{ fe_ecr_repo.repository.repositoryUri }}:{{ fe_source_image_tag }}"
+  tags:
+    - ecr
+
+- name: Apply tag to the fronted docker image.
+  command: "docker tag {{ fe_source_image_name }}:{{ fe_source_image_tag }} {{ fe_full_destination_image }}"
+  changed_when: true
+
+- name: Push frontend image to ECR.
+  command: "docker push {{ fe_full_destination_image }}"
+  register: push_result
+  changed_when: true
+  until: push_result is success
+  retries: 10
+  delay: 2
+  tags:
+    - ecr
+

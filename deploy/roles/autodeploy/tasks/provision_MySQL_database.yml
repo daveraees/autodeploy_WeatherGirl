@@ -1,0 +1,27 @@
+- name: mysql provisioning 
+  community.aws.rds:
+    instance_name: "{{ db_server_name }}"
+    db_name: "{{ db_database_name }}"
+    region:  "{{ cloud_config.region }}"
+    subnet: "{{ rds_subnet_group['subnet_group']['db_subnet_group_name'] }}"
+    vpc_security_groups:  "{{ cluster_security_groups.results[0]['group_id'] }}"
+    command: create
+    instance_name: "{{ db_instance_name }}"
+    db_engine: MySQL
+    size: 10
+    instance_type: db.t2.micro
+    username: "{{ lookup('env', 'WG_DATABASE_USER') }}"
+    password: "{{ lookup('env', 'WG_DATABASE_PASS') }}"
+    publicly_accessible: false
+    wait: true
+    wait_timeout: 900
+    tags:
+      Environment: development
+      Application: cms
+  register: mysql_instance_facts
+
+- name: New RDS information
+  debug:
+    msg: #"{{mysql_instance_facts}}"
+      - "{{mysql_instance_facts.instance.endpoint}}"
+      - "{{mysql_instance_facts.instance.port}}"

@@ -1,0 +1,10 @@
+- name: Build the Cloud Environment infrastructure and deploy WeatherGirl app
+  hosts: localhost
+  connection: local
+  gather_facts: False
+  vars_files:
+  roles:
+      - role: autodeploy
+        vars:
+          region: us-east-1
+      
