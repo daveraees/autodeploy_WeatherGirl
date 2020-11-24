@@ -62,15 +62,16 @@ Role Variables
 
 Environment variables of the Ansible Master Node (cluster build config) used in the "autodeploy" role:
 
-- AWS_ACESS_KEY_ID: Credentials for the DevOps user in the AWS account, with privileges to wide-enough manipulate the AWS resources (Creqte RDS instance, Create IAM roles, create VPN, subnets, InternetGateway, NAt Gateway, Edit route tables, Create ECS tasks, run ECS tasks,...)
+- AWS_ACCESS_KEY_ID: Credentials for the DevOps user in the AWS account, with privileges to wide-enough manipulate the AWS resources (Creqte RDS instance, Create IAM roles, create VPN, subnets, InternetGateway, NAt Gateway, Edit route tables, Create ECS tasks, run ECS tasks,...)
 - AWS_SECRET_ACCESS_KEY: ... the AWS credential secret ...
 - WG_QUERY_SECRET: (Your_OpenWeatherMap_secret_API_key) - basic access available free of charge for registered users at openweathermap.org
+- WG_CITY_COUNT_LIMIT: Maximum number of cities to queue for weather info periodic downloads. Maximu is about 60, due to request limit on the OpenWeatherMap data provider (max 1000 requests per day for free subscription)
 - WG_DATABASE_USER: (username of the MySQL database server user) arbitrary MySQL server username - if new database instance will be created, this will be the name of the admin user
 - WG_DATABASE_PASS: (password of the MySQL database server user)
 - WG_S3_BUCKET_NAME: Provide a name of the S3 bucket to be created and used in this application, e.g. "muyawskybl"
 - WG_DB_INSTANCE_NAME: Provide a name of the MySQL database to be created and used in this application, e.g. "muysqldb"
-- WG_BACKEND_SOURCE_DIR: /home/r/wg_robot
-- WG_FRONTEND_SOURCE_DIR=/home/r/web_pages
+- WG_BACKEND_SOURCE_DIR: directory/path/to/local/backend/repository
+- WG_FRONTEND_SOURCE_DIR: directory/path/to/local/frontend/repository
  
 The description of role variables:
 ### vars file for infrastructure-provision

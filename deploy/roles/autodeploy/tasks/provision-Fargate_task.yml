@@ -17,6 +17,8 @@
         value: "https://{{ s3bucket_name }}.s3.amazonaws.com"
       - name: "WG_QUERY_SECRET"
         value: "{{ lookup('env', 'WG_QUERY_SECRET') }}"
+      - name: "WG_CITY_COUNT_LIMIT"
+        value: "{{ lookup('env', 'WG_CITY_COUNT_LIMIT') }}"
       - name: "WG_CONFIG_PATH"
         value: "https://{{ s3bucket_name }}.s3.amazonaws.com/wg_config.json.gz"
       - name: "WG_DATABASE_ENDPOINT"

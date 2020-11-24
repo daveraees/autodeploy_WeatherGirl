@@ -1,6 +1,9 @@
-- name: Create an empty bucket.
+- name: Create a bucket.
   amazon.aws.aws_s3:
     bucket: "{{ s3bucket_name }}"
     mode: create
     permission: public-read-write
     region:  "{{ cloud_config.region }}"
+
+
+
