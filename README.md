@@ -1,9 +1,9 @@
-Infrastructure-provision
+autodeploy_WeatherGirl
 =========
 
-This is Ansible role which can be used to automatically build and deploys simple web application called "WeatherGirl" to Amazon Web Services. 
+This is repository contains an Ansible playbook which can be used to automatically build and deploy simple web application called "WeatherGirl" to Amazon Web Services. 
 
-The web application is composed of two docker containers, [*wg_frontend*](https://github.com/DavidDevOp/WeatherGirl-frontend) and [*wg_backend*](https://github.com/DavidDevOp/WeatherGirl-backend) which are build automatically from source codes stored locally.  The source codes are publicly available.
+The web application is composed of two docker containers, [*wg_frontend*](https://github.com/daveraees/WeatherGirl-frontend) and [*wg_backend*](https://github.com/daveraees/WeatherGirl-backend) which are build automatically from source codes stored locally.  The source codes are publicly available.
 
 With the provided AWS account access credentials for an IAM DevOps role, it creates all the services required for running the WeatherGirl application:
 - network environment 
@@ -60,7 +60,7 @@ Python modules:
 Role Variables
 --------------
 
-Environment variables of the Ansible Master Node (cluster build config) used in the role:
+Environment variables of the Ansible Master Node (cluster build config) used in the "autodeploy" role:
 
 - AWS_ACESS_KEY_ID: Credentials for the DevOps user in the AWS account, with privileges to wide-enough manipulate the AWS resources (Creqte RDS instance, Create IAM roles, create VPN, subnets, InternetGateway, NAt Gateway, Edit route tables, Create ECS tasks, run ECS tasks,...)
 - AWS_SECRET_ACCESS_KEY: ... the AWS credential secret ...
@@ -102,7 +102,7 @@ cloud_config:
     - { subnet_name: '{{ cluster_name }}_subnet_public', subnet_cidr: '10.0.0.0/24', zone: '{{ region }}a' } # this subnet is for the web server
     - { subnet_name: '{{ cluster_name }}_subnet_private', subnet_cidr: '10.0.1.0/24', zone: '{{ region }}a' } # private SN for the DB and the backend task
     - { subnet_name: '{{ cluster_name }}_subnet_private_altAZ', subnet_cidr: '10.0.2.0/24', zone: '{{ region }}b' } # private SN for the DB in another Availability Zone
-  internet_gateway: true                                           
+  internet_gateway: true
   admin_username: ec2-user
   security_groups:
     - name: scalable-http
@@ -119,10 +119,10 @@ Dependencies
 
 There are no dependencies on other roles hosted on Galaxy.
 
-Example Playbook
+Test the playbook
 ----------------
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+
 
         - name: Build the Cloud Environment infrastructure
           hosts: localhost
