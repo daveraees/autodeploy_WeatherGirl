@@ -2,7 +2,7 @@
   amazon.aws.aws_s3:
     bucket: "{{ s3bucket_name }}"
     mode: create
-    permission: public-read-write
+    permission: public-read
     region:  "{{ cloud_config.region }}"
 
 

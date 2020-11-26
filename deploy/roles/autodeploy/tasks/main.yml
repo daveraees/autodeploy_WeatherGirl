@@ -18,9 +18,13 @@
   
 - name: create ECS cluster
   import_tasks: provision-ECS_cluster.yml
-    
+
+- name: create the new IAM user API credentials
+  import_tasks: provision-AppUser.yml
+
 - name: create Fargate task and service
   import_tasks: provision-Fargate_task.yml
   
 - name: create Backend task-def and schedule
   import_tasks: provision-CWevent_rule.yml
+

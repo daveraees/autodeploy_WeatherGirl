@@ -1,0 +1,34 @@
+- name: Remove IAM User
+  community.aws.iam:
+    iam_type: "user"
+    name: "wg_app_user"
+    state: "absent"
+  register: old_user
+- debug:
+    var: old_user
+
+
+- name: Create IAM User with API keys
+  community.aws.iam:
+    iam_type: "user"
+    name: "wg_app_user"
+    state: "present"
+    access_key_state: "create"
+  register: new_user
+- debug:
+    var: new_user
+
+# Create a new S3 policy with prefix per user
+- name: Create S3 policy from template
+  community.aws.iam_policy:
+    iam_type: user
+    iam_name: "wg_app_user"
+    policy_name: "FullAccessS3andRDS"
+    state: present
+    policy_json: " {{ lookup( 'file', './vars/wg_app_user_group_policy.json') }} "
+    
+
+- name: Set wg_app_user access credentials
+  set_fact:
+    wg_app_user_AWS_ACCESS_KEY_ID: "{{ new_user.user_meta.access_keys[0].access_key_id }}"
+    wg_app_user_AWS_SECRET_ACCESS_KEY: "{{ new_user.user_meta.access_keys[0].secret_access_key }}"

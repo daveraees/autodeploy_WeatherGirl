@@ -1,9 +1,9 @@
 ---
 # vars file for infrastructure-provision
 cluster_name: weather_girl
-s3bucket_name: "{{ lookup('env', 'WG_S3_BUCKET_NAME') }}" # this should be taken from an environment variable, of the Ansible Master Node (cluster build config)
+s3bucket_name: "{{ lookup('env', 'WG_S3BUCKET_NAME') }}" # this should be taken from an environment variable, of the Ansible Master Node (cluster build config)
 db_instance_name: "{{ lookup('env', 'WG_DB_INSTANCE_NAME') }}" 
-db_database_name: "cities"
+db_database_name: "{{ lookup('env', 'WG_DATABASE_NAME') }}" 
 size_of_cluster: 1
 download_rate_expression: "rate(60 minutes)" # CloudWatchEvent rule task scheduling expression for downloading the data
 

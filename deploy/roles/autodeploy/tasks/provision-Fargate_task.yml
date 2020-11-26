@@ -13,14 +13,16 @@
       - containerPort: 5000
         hostPort:      5000
       environment:
-      - name: "WG_REMOTE_DATA_STORE"
-        value: "https://{{ s3bucket_name }}.s3.amazonaws.com"
-      - name: "WG_QUERY_SECRET"
-        value: "{{ lookup('env', 'WG_QUERY_SECRET') }}"
+      - name: "AWS_ACCESS_KEY_ID"
+        value: "{{ wg_app_user_AWS_ACCESS_KEY_ID }}"
+      - name: "AWS_SECRET_ACCESS_KEY"
+        value: "{{ wg_app_user_AWS_SECRET_ACCESS_KEY }}"
+      - name: "WG_S3BUCKET_NAME"
+        value: "{{ s3bucket_name }}"
       - name: "WG_CITY_COUNT_LIMIT"
         value: "{{ lookup('env', 'WG_CITY_COUNT_LIMIT') }}"
       - name: "WG_CONFIG_PATH"
-        value: "https://{{ s3bucket_name }}.s3.amazonaws.com/wg_config.json.gz"
+        value: "config/wg_config.json.gz"
       - name: "WG_DATABASE_ENDPOINT"
         value: "{{mysql_instance_facts.instance.endpoint}}" 
       - name: "WG_DATABASE_PORT"

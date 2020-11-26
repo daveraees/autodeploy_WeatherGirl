@@ -23,17 +23,6 @@ With the provided AWS account access credentials for an IAM DevOps role, it crea
         - in public subnet, has public "Elastic IP", and is accessible from the Internet at port 5000 
         
 
-
-Warning
-------------
-The code provided is in the developement stage. For making it production-ready, further steps need to be considered:
-
-- Using nginx web server to handle multiple requests. Currently (python flask web server is used).
-- Using a Load ballancer for the web server.
-- Restrict public access to the S3 bucket (requires to use boto3 python API for acessing AWS services, instead of the presently used http requests)
-- Use AWS IAM user/role for the front- and back- end tasks to access the AWS resources, namely the MySQL database se and, for more flexible access-rights control. 
-- Adopt a suitable policy for management of secret password(s) (e.g. AWS Secrets Manager). Currently container environment variables are used.
-
 Requirements
 ------------
 Toolchain:
@@ -45,7 +34,7 @@ Toolchain:
 - community.general # as installed with ansible, needef for some docker operations
 - community.aws (github repository merge pull #284 from main branch, see the note below)
 
-    ansible galaxy collection community.aws version from "main" branch at gthub repository required for proper function of the script. The release version (2.10.3) of the community.aws.ecs_taskdefinition module does not function properly. Version that worked was form merge pull #284 
+    ansible galaxy collection community.aws version from "main" branch at GitHub.com repository is required for proper function of the script. The release version (2.10.3) of the community.aws.ecs_taskdefinition module does not function properly. Version that worked was form merge pull #284 
     https://github.com/ansible-collections/community.aws/pull/284
     At the time of publication, the correct version could installed locally by run the following command:
         ansible-galaxy collection install git+https://github.com/ansible-collections/community.aws.git
@@ -53,7 +42,7 @@ Toolchain:
 
 Python modules:
 
-- python >=3.7
+- python >= 3.7
 - boto3 >= 1.16.17
 
 
@@ -68,62 +57,45 @@ Environment variables of the Ansible Master Node (cluster build config) used in 
 - WG_CITY_COUNT_LIMIT: Maximum number of cities to queue for weather info periodic downloads. Maximu is about 60, due to request limit on the OpenWeatherMap data provider (max 1000 requests per day for free subscription)
 - WG_DATABASE_USER: (username of the MySQL database server user) arbitrary MySQL server username - if new database instance will be created, this will be the name of the admin user
 - WG_DATABASE_PASS: (password of the MySQL database server user)
-- WG_S3_BUCKET_NAME: Provide a name of the S3 bucket to be created and used in this application, e.g. "muyawskybl"
+- WG_S3BUCKET_NAME: Provide a name of the S3 bucket to be created and used in this application, e.g. "muyawskybl"
 - WG_DB_INSTANCE_NAME: Provide a name of the MySQL database to be created and used in this application, e.g. "muysqldb"
-- WG_BACKEND_SOURCE_DIR: directory/path/to/local/backend/repository
-- WG_FRONTEND_SOURCE_DIR: directory/path/to/local/frontend/repository
+- WG_BACKEND_SOURCE_DIR: /absolute/path/to/clone/of/backend/repository/directory
+- WG_FRONTEND_SOURCE_DIR: /absolute/path/to/clone/of/frontend/repository/directory
  
-The description of role variables:
-### vars file for infrastructure-provision
-cluster_name: weather_girl
-s3bucket_name: "{{ lookup('env', 'WG_S3_BUCKET_NAME') }}" # this should be taken from an environment variable
-db_instance_name: "{{ lookup('env', 'WG_DB_INSTANCE_NAME') }}" # this should be taken from an environment variable
-db_database_name: "cities" # the name of the database in the DB instance
-size_of_cluster: 1 # how many running frontend containers are required. Only "1" os supported at this moment.
-download_rate_expression: "rate(60 minutes)" # CloudWatchEvent rule task scheduling expression for downloading the data
+The description of variables in file /deploy/roles/autodeploy/vars/main.yml:
+### vars file for autodeploy
+- cluster_name: weather_girl
+- s3bucket_name: "{{ lookup('env', 'WG_S3BUCKET_NAME') }}" # this should be taken from an environment variable
+- db_instance_name: "{{ lookup('env', 'WG_DB_INSTANCE_NAME') }}" # this should be taken from an environment variable
+- db_database_name: "cities" # the name of the database in the DB instance
+- size_of_cluster: 1 # how many running frontend containers are required. Only "1" os supported at this moment.
+- download_rate_expression: "rate(60 minutes)" # CloudWatchEvent rule task scheduling expression for downloading the data
 
-### backend docker image parameters
-be_source_folder: "{{ lookup('env', 'WG_BACKEND_SOURCE_DIR') }}"
-be_repository_name: "wg_backend" # name of the ECR repository
-be_source_image_name: "wg_backend" # local source image name to push
-be_source_image_tag: "latest" # source image tag to use for push
+#### backend docker image parameters
+- be_source_folder: "{{ lookup('env', 'WG_BACKEND_SOURCE_DIR') }}"
+- be_repository_name: "wg_backend" # name of the ECR repository
+- be_source_image_name: "wg_backend" # local source image name to push
+- be_source_image_tag: "latest" # source image tag to use for push
 
-### frontend docker image parameters
-fe_source_folder: "{{ lookup('env', 'WG_FRONTEND_SOURCE_DIR') }}"
-fe_repository_name: "wg_frontend" # name of the ECR repository
-fe_source_image_name: "wg_frontend" # local source image name to push
-fe_source_image_tag: "latest" # source image tag to use for push
+#### frontend docker image parameters
+- fe_source_folder: "{{ lookup('env', 'WG_FRONTEND_SOURCE_DIR') }}"
+- fe_repository_name: "wg_frontend" # name of the ECR repository
+- fe_source_image_name: "wg_frontend" # local source image name to push
+- fe_source_image_tag: "latest" # source image tag to use for push
 
-### configuration of the VPC and network environment:
-cloud_config:
-  region: '{{ region }}'
-  vpc_name: "{{ cluster_name }}-vpc"
-  vpc_cidr: '10.0.0.0/16'
-  subnets:
-    - { subnet_name: '{{ cluster_name }}_subnet_public', subnet_cidr: '10.0.0.0/24', zone: '{{ region }}a' } # this subnet is for the web server
-    - { subnet_name: '{{ cluster_name }}_subnet_private', subnet_cidr: '10.0.1.0/24', zone: '{{ region }}a' } # private SN for the DB and the backend task
-    - { subnet_name: '{{ cluster_name }}_subnet_private_altAZ', subnet_cidr: '10.0.2.0/24', zone: '{{ region }}b' } # private SN for the DB in another Availability Zone
-  internet_gateway: true
-  admin_username: ec2-user
-  security_groups:
-    - name: scalable-http
-      rules:
-        - {"proto":"tcp", "from_port":"80", "to_port":"80", "cidr_ip":"0.0.0.0/0"} # access web server (in production mode,)
-        - {"proto":"tcp", "from_port":"3306", "to_port":"3306", "cidr_ip":"0.0.0.0/0"} # for access to the database from anywhere (on the private subnet)
-        - {"proto":"tcp", "from_port":"443", "to_port":"443", "cidr_ip":"0.0.0.0/0"} # SSH access from the Internet
-        - {"proto":"tcp", "from_port":"5000", "to_port":"5000", "cidr_ip":"0.0.0.0/0"} # access the web server in development stage
-      description: "http - {{ cluster_name }}"
-
+#### configuration of the VPC and network environment:
+- cloud_config: # dictionary with the cloud configuration, please see the 
 
 Dependencies
 ------------
 
-There are no dependencies on other roles hosted on Galaxy.
+There are no dependencies on other roles hosted on Galaxy. 
+
+The playbook uses *docker* commnad to manipulate container images, therefore it must be able to invoke the commands. Docker command needs superuser privileges. You can setup your Linux system following the guide: [Post-installation steps for Linux](https://docs.docker.com/engine/install/linux-postinstall/)
 
 Test the playbook
 ----------------
-
-
+The sample playbook *deploy/deploy.yml* should be edited prior to execution. The AWS region for the cluster deployment should be specified in the *region* variable. This example playbook deploys the WeatherGirl app to the us-east-1 region (N. Virginia, US).
 
         - name: Build the Cloud Environment infrastructure
           hosts: localhost
@@ -131,9 +103,23 @@ Test the playbook
           gather_facts: False
           vars_files:
           roles:
-              - role: infrastructure-provision
+              - role: autodeploy
                 vars:
-                  region: us-east-1
+                  region: eu-west-1
+
+The playbook *deploy/deploy.yml* can be executed with the following command from the playbook's directory:
+
+        $ ansible-playbook deploy.yml
+
+Warning
+------------
+The code provided is in the developement stage, the author accepts no reliability for potential damage caused by using it. For making it production-ready, further steps need to be considered:
+
+- Using nginx web server to handle multiple requests. Currently (python flask web server is used).
+- Using a Load ballancer for the web server.
+- Adjust public access to the S3 bucket (it has currently *public-read* permission)
+- Use AWS IAM user/role for the front- and back- end tasks to access the AWS resources, namely the MySQL database se and, for more flexible access-rights control. 
+- Adopt a suitable policy for management of secret password(s) (e.g. AWS Secrets Manager). Currently container environment variables are used.
       
 License
 -------

@@ -10,14 +10,18 @@
       essential: true
       image: "{{ be_ecr_repo.repository.repositoryUri }}:{{ be_source_image_tag }}"
       environment:
-      - name: "WG_REMOTE_DATA_STORE"
-        value: "https://{{ s3bucket_name }}.s3.amazonaws.com"
+      - name: "AWS_ACCESS_KEY_ID"
+        value: "{{ wg_app_user_AWS_ACCESS_KEY_ID }}"
+      - name: "AWS_SECRET_ACCESS_KEY"
+        value: "{{ wg_app_user_AWS_SECRET_ACCESS_KEY }}"
+      - name: "WG_S3BUCKET_NAME"
+        value: "{{ s3bucket_name }}"
       - name: "WG_QUERY_SECRET"
         value: "{{ lookup('env', 'WG_QUERY_SECRET') }}"
       - name: "WG_CITY_COUNT_LIMIT"
         value: "{{ lookup('env', 'WG_CITY_COUNT_LIMIT') }}"
       - name: "WG_CONFIG_PATH"
-        value: "https://{{ s3bucket_name }}.s3.amazonaws.com/wg_config.json.gz"
+        value: "config/wg_config.json.gz"
       - name: "WG_DATABASE_ENDPOINT"
         value: "{{mysql_instance_facts.instance.endpoint}}" 
       - name: "WG_DATABASE_PORT"
@@ -46,27 +50,25 @@
 
 - debug: msg="{{ backend_taskdef }}"
 
-#- name: RUN a task on Fargate # broken in Ansible
-#  community.aws.ecs_task:
-#    operation: start
-#    cluster: "{{ cluster_name }}"
-#    #family: "{{ cluster_name }}-backend-taskdef-family"
-#    task: "{{ cluster_name }}-backend-taskdef"
-#    task_definition: "{{ cluster_name }}-backend-taskdef"
-#    started_by: "ansible_user"
-#    launch_type: FARGATE
-#    network_configuration:
-#      subnets:
-#      - "{{ cluster_subnet.results[0]['subnet']['id'] }}" # public
-#      - "{{ cluster_subnet.results[1]['subnet']['id'] }}" # private
+- name: RUN a task on Fargate # broken in Ansible
+  community.aws.ecs_task:
+    operation: run
+    cluster: "{{ cluster_name }}"
+    #family: "{{ cluster_name }}-backend-taskdef-family"
+    task_definition: "{{ cluster_name }}-backend-taskdef"
+    started_by: "ansible_user"
+    launch_type: FARGATE
+    network_configuration:
+      subnets:
+      - "{{ cluster_subnet.results[1]['subnet']['id'] }}" # private
 #      - "{{ cluster_subnet.results[2]['subnet']['id'] }}" # private alt_AZ
-#      security_groups:
-#      - "{{ http_security_group.security_groups[0]['group_id'] }}"
-#    count: "{{ size_of_cluster }}"
-#    region: "{{ cloud_config.region }}"
-#  register: task_output
-# 
-#- debug: msg="{{ task_output }}"
+      security_groups:
+      - "{{ http_security_group.security_groups[0]['group_id'] }}"
+    count: "{{ size_of_cluster }}"
+    region: "{{ cloud_config.region }}"
+  register: task_output
+ 
+- debug: msg="{{ task_output }}"
 
 - name: Create a role for CloudWatchEventScheduler
   iam_role:
@@ -131,7 +133,7 @@
 
 
 - name: Setup scheduled backend task
-  shell: 'aws events put-targets --region us-east-1 --cli-input-json file://{{ task_target_def_filename }}'
+  shell: 'aws events put-targets --region {{ cloud_config.region }} --cli-input-json file://{{ task_target_def_filename }}'
   #shell: 'aws events put-targets --region us-east-1 --cli-input-json {{ cmd_line_args|to_json }}'
   args:
     executable: /bin/bash
